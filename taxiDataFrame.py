@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # Initialize an empty DataFrame
 Data = pd.DataFrame()
@@ -18,81 +20,71 @@ for root, dirs, files in os.walk(dataset_path):
 # Read each CSV file into a DataFrame and store them in a list
 D = []
 for index, file_path in enumerate(F):
-    D.append(pd.read_csv(file_path, header=None, parse_dates=[1],
-                         names=['taxi_id', 'date_time', 'longitude', 'latitude']))
+    try:
+        df = pd.read_csv(file_path, header=None, parse_dates=[1], names=[
+                         'taxi_id', 'date_time', 'longitude', 'latitude'])
+        D.append(df)
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
 
-# Concatenate all DataFrames in the list into a single DataFrame
-Data = pd.concat(D, ignore_index=True)
+# Check if D is not empty before concatenation
+if D:
+    # Concatenate all DataFrames in the list into a single DataFrame
+    Data = pd.concat(D, ignore_index=True)
+    print(f"Concatenated DataFrame shape: {Data.shape}")
+else:
+    print("No valid data files found.")
+    exit()
 
 # Remove duplicates and handle missing values
 Data.drop_duplicates(inplace=True)
 Data.dropna(inplace=True)
-
-# Display the shape of the DataFrame
-print(Data.shape)
+print(f"Data shape after dropping duplicates and NA: {Data.shape}")
 
 # Compute time differences between consecutive records for each taxi
-D_diff = Data.sort_values(
-    by='date_time', ascending=True).groupby('taxi_id').diff()
-D_diff.dropna(inplace=True)
-T = D_diff.iloc[:, 0]
-T /= np.timedelta64(1, 's')
-print('Average time interval: ', T[T < 1e3].mean(), 'Sec')
-T /= 60
+Data = Data.sort_values(by='date_time', ascending=True).groupby(
+    'taxi_id').diff().dropna()
+T = Data['date_time'].dt.total_seconds().div(
+    60)  # Convert time delta to minutes
 
-# Prepare longitude and latitude data for distance calculation
-lon = Data['longitude'].to_numpy() * np.pi / 180
-lat = Data['latitude'].to_numpy() * np.pi / 180
-lon1 = lon[:-1]
-lon2 = lon[1:]
-lat1 = lat[:-1]
-lat2 = lat[1:]
-Delta_lat = lat2 - lat1
-Delta_lon = lon2 - lon1
-a = (np.sin(Delta_lat / 2)) ** 2 + np.cos(lat1) * \
-    np.cos(lat2) * (np.sin(Delta_lon / 2)) ** 2
-Distance = 6371 * 1000 * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-print('Average distance interval: ', Distance[Distance < 1e5].mean(), 'meters')
+# Prepare longitude and latitude data
+lon = Data['longitude']
+lat = Data['latitude']
 
-# Plot histograms
-T_Interval = T
-fig = plt.figure(figsize=(10, 4), dpi=100)  # Adjusted figsize and dpi
-ax1 = plt.subplot2grid((1, 2), (0, 0))
-plt.hist(T_Interval[(T_Interval > 0.2) & (T_Interval < 12)], bins=24, rwidth=0.8, color='r',
-         weights=np.ones_like(T_Interval[(T_Interval > 0.2) & (T_Interval < 12)]) / T_Interval[(T_Interval > 0.2) & (T_Interval < 12)].size)
-plt.ylabel('proportion', fontsize=10)
-plt.text(5.2, -0.06, 'minutes', fontsize=8)
-plt.text(3.8, -0.1, '(a) Time Intervals', fontsize=10)
-ax2 = plt.subplot2grid((1, 2), (0, 1))
-plt.hist(Distance[(Distance < 8000) & (Distance > 250)], bins=16, rwidth=0.8, color='r',
-         weights=np.ones_like(Distance[(Distance < 8000) & (Distance > 250)]) / Distance[(Distance < 8000) & (Distance > 250)].size)
-plt.text(3500, -0.025, 'meters', fontsize=8)
-plt.text(2400, -0.038, '(b) Distance Intervals', fontsize=10)
-plt.ylabel('proportion', fontsize=10)
+# Combine features into a single DataFrame for clustering
+features = pd.DataFrame(
+    {'longitude': lon, 'latitude': lat, 'time_interval': T})
+
+# Check for NaN or infinite values before scaling
+print(f"Features summary before scaling:\n{features.describe()}")
+
+# Standardize the features
+scaler = StandardScaler()
+features_scaled = scaler.fit_transform(features)
+
+# Check for NaN or infinite values after scaling
+if np.isnan(features_scaled).any() or np.isinf(features_scaled).any():
+    print("NaN or infinite values found after scaling.")
+    exit()
+
+# Apply K-Means clustering
+num_clusters = 5  # You can adjust the number of clusters
+kmeans = KMeans(n_clusters=num_clusters)
+kmeans.fit(features_scaled)
+features['cluster'] = kmeans.labels_
+
+# Print the cluster assignments
+print(features.head())
+
+# Visualize the clusters
+plt.figure(figsize=(10, 6))
+plt.scatter(features['longitude'], features['latitude'],
+            c=features['cluster'], cmap='viridis', marker='.')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.title('K-Means Clustering of Taxi Pickups')
+plt.colorbar(label='Cluster')
 plt.show()
 
-# Filter data for Beijing
-Beijing = Data[(116.05 < Data.longitude) & (Data.longitude < 116.8)
-               & (39.5 < Data.latitude) & (Data.latitude < 40.25)]
-
-# Plot hexbin maps for Beijing data
-plt.figure(figsize=(10, 4), dpi=100)  # Adjusted figsize and dpi
-ax1 = plt.subplot2grid((1, 2), (0, 0))
-plt.hexbin(Beijing.longitude, Beijing.latitude,
-           bins='log', gridsize=600, cmap=plt.cm.hot)
-plt.axis([116.05, 116.8, 39.5, 40.25])
-plt.title("(a) Data overview in Beijing", fontsize=10)
-cb = plt.colorbar()
-cb.set_label('log10(N)', fontsize=8)
-
-ax2 = plt.subplot2grid((1, 2), (0, 1))
-Ring_Road = Data[(116.17 < Data.longitude) & (Data.longitude < 116.57) & (
-    39.76 < Data.latitude) & (Data.latitude < 40.09)]
-plt.hexbin(Ring_Road.longitude, Ring_Road.latitude,
-           bins='log', gridsize=600, cmap=plt.cm.hot)
-plt.axis([116.17, 116.57, 39.76, 40.09])
-plt.title("(b) Within the 5th Ring Road of Beijing", fontsize=10)
-cb = plt.colorbar()
-cb.set_label('log10(N)', fontsize=8)
-
-plt.show()
+# Optional: Save the clustered data to a CSV file
+features.to_csv('clustered_taxi_pickups.csv', index=False)
