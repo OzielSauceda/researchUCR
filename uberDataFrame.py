@@ -5,6 +5,8 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
+# K-means clustering
+
 # Set the folder pathway
 path = r'C:/Users/bosso/OneDrive/Desktop/REU Research/Uber Pickups'
 
