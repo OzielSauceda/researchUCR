@@ -1,11 +1,11 @@
 import pandas as pd
 import os
 import glob
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-# K-means clustering
+# DBSCAN clustering
 
 # Set the folder pathway
 path = r'C:/Users/bosso/OneDrive/Desktop/REU Research/Uber Pickups'
@@ -60,34 +60,37 @@ combined_df.to_csv(output_file, index=False)
 if 'Lat' in combined_df.columns and 'Lon' in combined_df.columns:
     combined_df = combined_df.dropna(subset=['Lat', 'Lon'])
     if not combined_df.empty:
+        # Use a smaller subset of data
+        subset_size = 100000  # Adjust this number as needed
+        combined_df_subset = combined_df.sample(n=subset_size, random_state=42)
+        print(f"Subset Data shape: {combined_df_subset.shape}")
+
         # Select features for clustering
         features = ['Lat', 'Lon']
-        data = combined_df[features]
+        data = combined_df_subset[features]
 
         # Standardize the data
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # Apply K-means clustering
-        # Adjust n_clusters as needed
-        kmeans = KMeans(n_clusters=5, random_state=42)
-        kmeans.fit(scaled_data)
-
-        # Add the cluster labels to the original DataFrame
-        combined_df['Cluster'] = kmeans.labels_
+        # Apply DBSCAN clustering
+        eps = 0.1  # You can adjust the epsilon parameter
+        min_samples = 10  # You can adjust the minimum number of samples per cluster
+        dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+        combined_df_subset['Cluster'] = dbscan.fit_predict(scaled_data)
 
         # Specify the output file path for the clustered DataFrame
         clustered_output_file = r'C:/Users/bosso/OneDrive/Desktop/combined_uber_pickups_with_clusters.csv'
 
         # Save the DataFrame with cluster labels to a new CSV file
-        combined_df.to_csv(clustered_output_file, index=False)
+        combined_df_subset.to_csv(clustered_output_file, index=False)
 
         # Analyze and visualize the clusters
         plt.figure(figsize=(10, 6))
-        plt.scatter(combined_df['Lon'], combined_df['Lat'],
-                    c=combined_df['Cluster'], cmap='viridis')
+        plt.scatter(combined_df_subset['Lon'], combined_df_subset['Lat'],
+                    c=combined_df_subset['Cluster'], cmap='viridis')
         plt.colorbar(label='Cluster')
-        plt.title('K-means Clustering of Taxi Pickups')
+        plt.title('DBSCAN Clustering of Uber Pickups')
         plt.xlabel('Longitude')
         plt.ylabel('Latitude')
         plt.show()
