@@ -1,11 +1,11 @@
 import pandas as pd
 import os
 import glob
-from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import AgglomerativeClustering
 import matplotlib.pyplot as plt
 
-# DBSCAN clustering
+# Hierarchical clustering
 
 # Set the folder pathway
 path = r'C:/Users/bosso/OneDrive/Desktop/REU Research/Uber Pickups'
@@ -61,7 +61,7 @@ if 'Lat' in combined_df.columns and 'Lon' in combined_df.columns:
     combined_df = combined_df.dropna(subset=['Lat', 'Lon'])
     if not combined_df.empty:
         # Use a smaller subset of data
-        subset_size = 100000  # Adjust this number as needed
+        subset_size = 10000  # Adjust this number as needed
         combined_df_subset = combined_df.sample(n=subset_size, random_state=42)
         print(f"Subset Data shape: {combined_df_subset.shape}")
 
@@ -73,11 +73,10 @@ if 'Lat' in combined_df.columns and 'Lon' in combined_df.columns:
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # Apply DBSCAN clustering
-        eps = 0.1  # You can adjust the epsilon parameter
-        min_samples = 10  # You can adjust the minimum number of samples per cluster
-        dbscan = DBSCAN(eps=eps, min_samples=min_samples)
-        combined_df_subset['Cluster'] = dbscan.fit_predict(scaled_data)
+        # Apply hierarchical clustering
+        num_clusters = 5  # You can adjust the number of clusters
+        hierarchical = AgglomerativeClustering(n_clusters=num_clusters)
+        combined_df_subset['Cluster'] = hierarchical.fit_predict(scaled_data)
 
         # Specify the output file path for the clustered DataFrame
         clustered_output_file = r'C:/Users/bosso/OneDrive/Desktop/combined_uber_pickups_with_clusters.csv'
@@ -90,7 +89,7 @@ if 'Lat' in combined_df.columns and 'Lon' in combined_df.columns:
         plt.scatter(combined_df_subset['Lon'], combined_df_subset['Lat'],
                     c=combined_df_subset['Cluster'], cmap='viridis')
         plt.colorbar(label='Cluster')
-        plt.title('DBSCAN Clustering of Uber Pickups')
+        plt.title('Hierarchical Clustering of Uber Pickups')
         plt.xlabel('Longitude')
         plt.ylabel('Latitude')
         plt.show()
