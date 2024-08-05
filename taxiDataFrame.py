@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import AgglomerativeClustering
 from sklearn.preprocessing import StandardScaler
 
 # Initialize an empty DataFrame
@@ -42,7 +42,7 @@ Data.dropna(inplace=True)
 print(f"Data shape after dropping duplicates and NA: {Data.shape}")
 
 # Use a smaller subset of data
-subset_size = 50000  # Adjust this number as needed
+subset_size = 20000  # Adjust this number as needed for a smaller subset
 Data_subset = Data.sample(n=subset_size, random_state=42)
 print(f"Subset Data shape: {Data_subset.shape}")
 
@@ -72,14 +72,16 @@ if np.isnan(features_scaled).any() or np.isinf(features_scaled).any():
     print("NaN or infinite values found after scaling.")
     exit()
 
-# Apply DBSCAN clustering
-eps = 0.5  # You can adjust the epsilon parameter
-min_samples = 5  # You can adjust the minimum number of samples per cluster
-dbscan = DBSCAN(eps=eps, min_samples=min_samples)
-features['cluster'] = dbscan.fit_predict(features_scaled)
+# Apply Hierarchical clustering
+num_clusters = 5  # You can adjust the number of clusters
+hierarchical = AgglomerativeClustering(n_clusters=num_clusters)
+features['cluster'] = hierarchical.fit_predict(features_scaled)
 
 # Print the cluster assignments
 print(features.head())
+
+# Ensure the plot displays
+plt.ion()  # Turn on the interactive mode in Matplotlib
 
 # Visualize the clusters
 plt.figure(figsize=(10, 6))
@@ -87,9 +89,13 @@ plt.scatter(features['longitude'], features['latitude'],
             c=features['cluster'], cmap='viridis', marker='.')
 plt.xlabel('Longitude')
 plt.ylabel('Latitude')
-plt.title('DBSCAN Clustering of Taxi Pickups')
+plt.title('Hierarchical Clustering of Taxi Pickups')
 plt.colorbar(label='Cluster')
 plt.show()
 
 # Optional: Save the clustered data to a CSV file
 features.to_csv('clustered_taxi_pickups.csv', index=False)
+
+# Keep the plot open
+plt.ioff()  # Turn off the interactive mode
+plt.show()
